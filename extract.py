@@ -36,7 +36,7 @@ QUERY_TEMPLATE = {
         "page": "FUZZ",  # This will be replaced
         "sortBy": "START_TIME",
         "sortDirection": "DESC",
-        "channelIdsFilter": ["email"],
+        "channelIdsFilter": [], # MODIFIED: Changed from ["email"] to []
         "entriesPerPage": ENTRIES_PER_PAGE,
         "agentIdsFilter": [],
         "departmentIdsFilter": []
@@ -82,14 +82,33 @@ def send_request(page_number):
         print(f"Page {page_number}: Request timed out.")
     except requests.exceptions.HTTPError as e:
         print(f"Page {page_number}: HTTP error: {e.response.status_code} - {e.response.text}")
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException as e: # This will catch the JSONDecodeError if it's wrapped
         print(f"Page {page_number}: Request failed: {e}")
-    except json.JSONDecodeError:
-        print(f"Page {page_number}: Failed to decode JSON response.")
+        # Attempt to print response text if available, e.g. if 'e' is a superclass of JSONDecodeError
+        # and the actual error was JSONDecodeError, response might not be directly on 'e'.
+        # It's better to catch JSONDecodeError specifically.
+    except json.JSONDecodeError as jde:
+        print(f"Page {page_number}: Failed to decode JSON response. Error: {jde}")
+        # Accessing response from the try block if it was successfully fetched before json() call
+        # This part is tricky as 'response' might not be in scope or might be from a previous successful call
+        # if the error is not directly after 'response = requests.post(...)'
+        # For a robust way, we need to ensure response object is available here.
+        # A simpler way for now is to print it if the error occurs right after getting response.
+        # Let's assume 'response' is the response object from requests.post
+        # The 'response' object should be available if the request itself didn't fail before .json()
+        # This specific error "Expecting value" happens *during* .json() call.
+        # So, 'response' object from 'requests.post' IS available.
+        if 'response' in locals() and response is not None:
+            print(f"Page {page_number}: Status Code: {response.status_code}")
+            print(f"Page {page_number}: Response Text: {response.text[:500]}...") # Print first 500 chars
+        else:
+            print(f"Page {page_number}: 'response' object not available for inspection for this JSONDecodeError.")
 
     return [] # Return empty list on error
 
 if __name__ == "__main__":
+    # Ensure 'threading' is imported if using locks later, though not used in this specific snippet directly
+    # import threading
     all_conversation_ids = []
     start_time = time.time()
 
